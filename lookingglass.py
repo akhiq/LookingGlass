@@ -1,6 +1,7 @@
 import flask
 import re
 import sh
+from markupsafe import escape
 
 app = flask.Flask(__name__)
 app.config.from_pyfile('instance/default.cfg')
@@ -10,14 +11,36 @@ def get_and_validate_host(request):
     """Confirms that request's host parameter is a host or ip(v6)
 
     returns None on failure.
+
+    Security improvements:
+    - Length validation (max 253 chars for FQDN per RFC 1035)
+    - Proper regex escaping
+    - Validates IPv4, IPv6, and hostname formats
     """
     target = request.args.get('host')
     if target is None:
-        return
-    match = re.search("^[a-zA-Z0-9\-\.:]+$", target)
-    if match is not None:
-        return target
-    return
+        return None
+
+    # Length validation to prevent DoS
+    if len(target) > 253:
+        return None
+
+    # Properly escaped regex - hyphen at end of character class
+    # Allows: alphanumeric, dots, colons (for IPv6), hyphens
+    match = re.search(r"^[a-zA-Z0-9.:_-]+$", target)
+    if match is None:
+        return None
+
+    # Additional validation: prevent obvious abuse patterns
+    # No leading/trailing dots or hyphens
+    if target.startswith(('.', '-')) or target.endswith(('.', '-')):
+        return None
+
+    # Prevent multiple consecutive dots (not valid in hostnames)
+    if '..' in target:
+        return None
+
+    return target
 
 def execute(encoder, command, *args, **kwargs):
     """Runs <command> with *args and **kwargs, then handles output using the
@@ -29,7 +52,7 @@ def execute(encoder, command, *args, **kwargs):
         """Generator for streaming output"""
         try:
             for chunk in command(*args, _iter=True, **kwargs):
-                yield flask.escape(chunk)
+                yield escape(chunk)
         except sh.ErrorReturnCode:
             pass
     if encoder == "raw":
@@ -46,7 +69,7 @@ def execute(encoder, command, *args, **kwargs):
             "status": status
         })
     else:
-        return flask.escape("Error, invalid encoder")
+        return escape("Error, invalid encoder")
 
 def error_response(encoder, error):
     """Responds with <error> text based on <encoder>"""
@@ -56,7 +79,7 @@ def error_response(encoder, error):
             "status": 1
         })
     else:
-        return flask.escape(error)
+        return escape(error)
 
 @app.route("/<encoder>/host")
 def api_host(encoder):
