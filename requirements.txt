@@ -1,6 +1,9 @@
-# Modern Python 3 dependencies (2025)
-# Flask includes: Jinja2, MarkupSafe, Werkzeug, itsdangerous, click
-Flask>=3.0.0,<4.0.0
-sh>=2.0.0,<3.0.0
-
-# argparse and wsgiref are now built into Python 3 stdlib
+Click==7.0
+Flask==1.0.2
+Jinja2==2.10
+MarkupSafe==1.1.1
+Werkzeug==0.15.1
+argparse==1.2.1
+itsdangerous==1.1.0
+sh==1.11
+wsgiref==0.1.2
